@@ -4,7 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.agent_runs.models import AgentRun
 from core.agent_runs.service import AgentRunService
+from core.orchestrator.protocol import AgentContext
+from core.orchestrator.service import Orchestrator
 from database.session import get_session
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -34,13 +37,33 @@ async def run_agent(request: AgentRunRequest, session: AsyncSession = Depends(ge
         input_=request.input,
         context=request.context,
     )
-    result = {
-        "status": "accepted",
-        "agent": request.agent_name,
-        "objective": request.objective,
-        "message": "Agent run created. Execution will be wired to the orchestrator in the next milestone.",
-    }
-    await service.complete(run.id, result)
+    try:
+        context = AgentContext(
+            objective=request.objective,
+            input=request.input,
+            memory=request.context.get("memory", {}),
+            constraints=request.context.get("constraints", {}),
+        )
+        result = await Orchestrator().run(request.agent_name, context)
+        payload = {
+            "status": result.status,
+            "summary": result.summary,
+            "findings": result.findings,
+            "actions": result.actions,
+            "recommendations": result.recommendations,
+            "memory_updates": result.memory_updates,
+            "requires_approval": result.requires_approval,
+        }
+        await service.complete(run.id, payload)
+    except ValueError as exc:
+        await service.fail(run.id, str(exc))
+        await session.commit()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        await service.fail(run.id, str(exc))
+        await session.commit()
+        raise HTTPException(status_code=500, detail="Agent execution failed") from exc
+
     await session.commit()
     return AgentRunResponse(
         id=run.id,
@@ -53,8 +76,6 @@ async def run_agent(request: AgentRunRequest, session: AsyncSession = Depends(ge
 
 @router.get("/runs/{run_id}", response_model=AgentRunResponse)
 async def get_agent_run(run_id: UUID, session: AsyncSession = Depends(get_session)):
-    from core.agent_runs.models import AgentRun
-
     run = await session.get(AgentRun, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Agent run not found")
