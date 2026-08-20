@@ -1,8 +1,13 @@
-from core.agents.base import AgentContext, AgentResult
+from core.agents.research import ResearchAgent
+from core.orchestrator.protocol import AgentContext, AgentResult
 
 
 class Orchestrator:
-    """Coordinates agent execution; policy and tool gateways will be added next."""
+    def __init__(self) -> None:
+        self.agents = {ResearchAgent.name: ResearchAgent()}
 
-    async def run(self, context: AgentContext, agent) -> AgentResult:
+    async def run(self, agent_name: str, context: AgentContext) -> AgentResult:
+        agent = self.agents.get(agent_name)
+        if agent is None:
+            raise ValueError(f"Unknown agent: {agent_name}")
         return await agent.run(context)
