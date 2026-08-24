@@ -24,4 +24,14 @@ Core components:
 
 ## Current milestone
 
-**Foundation v0.1** — infrastructure skeleton and core module boundaries.
+**Foundation v0.5 — Tool Gateway**
+
+Implemented:
+- typed Tool protocol and execution result
+- centralized permission gate
+- duplicate-safe Tool Gateway registration
+- Tool Registry with a default Web Research Tool
+- SSRF-conscious public HTTP(S) page retrieval with size/content limits and redirects disabled
+- gateway and web-tool tests
+
+The next step is wiring the Tool Registry into the Orchestrator/Research Agent execution path.

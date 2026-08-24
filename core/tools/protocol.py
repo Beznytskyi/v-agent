@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 
@@ -6,11 +6,26 @@ from typing import Any, Protocol
 class ToolSpec:
     name: str
     description: str
-    risk_level: str
-    permissions: frozenset[str]
+    risk_level: str = "low"
+    permissions: frozenset[str] = field(default_factory=frozenset)
+
+
+@dataclass(frozen=True, slots=True)
+class ToolContext:
+    permissions: frozenset[str] = field(default_factory=frozenset)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class ToolResult:
+    status: str
+    data: dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
 
 
 class Tool(Protocol):
     spec: ToolSpec
 
-    async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]: ...
+    async def execute(
+        self, context: ToolContext, arguments: dict[str, Any]
+    ) -> ToolResult: ...
