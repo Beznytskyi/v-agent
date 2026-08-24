@@ -1,10 +1,16 @@
 import asyncio
 import ipaddress
 import socket
+from urllib.error import HTTPError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from core.tools.protocol import Tool, ToolContext, ToolResult, ToolSpec
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ValueError("HTTP redirects are not allowed")
 
 
 class WebResearchTool(Tool):
@@ -20,6 +26,7 @@ class WebResearchTool(Tool):
     def __init__(self, timeout: float = 10.0, max_bytes: int = 1_000_000) -> None:
         self.timeout = timeout
         self.max_bytes = max_bytes
+        self._opener = build_opener(_NoRedirectHandler())
 
     async def execute(self, context: ToolContext, arguments: dict) -> ToolResult:
         url = str(arguments.get("url", "")).strip()
@@ -30,16 +37,17 @@ class WebResearchTool(Tool):
             parsed = self._validate_url(url)
             body, content_type = await asyncio.to_thread(self._fetch, url)
             text = body.decode("utf-8", errors="replace")
+            max_chars = max(1, min(int(arguments.get("max_chars", 12000)), 100_000))
             return ToolResult(
                 status="completed",
                 data={
                     "url": url,
                     "host": parsed.hostname,
                     "content_type": content_type,
-                    "text": text[: int(arguments.get("max_chars", 12000))],
+                    "text": text[:max_chars],
                 },
             )
-        except (ValueError, OSError, UnicodeError) as exc:
+        except (ValueError, OSError, UnicodeError, HTTPError) as exc:
             return ToolResult(status="error", error=str(exc))
 
     def _validate_url(self, url: str):
@@ -59,11 +67,8 @@ class WebResearchTool(Tool):
         return parsed
 
     def _fetch(self, url: str) -> tuple[bytes, str]:
-        request = Request(
-            url,
-            headers={"User-Agent": "V-Agent/0.5 (+https://github.com/Beznytskyi/v-agent)"},
-        )
-        with urlopen(request, timeout=self.timeout) as response:
+        request = Request(url, headers={"User-Agent": "V-Agent/0.5"})
+        with self._opener.open(request, timeout=self.timeout) as response:
             content_type = response.headers.get_content_type()
             if not content_type.startswith(("text/", "application/json", "application/xml")):
                 raise ValueError(f"Unsupported content type: {content_type}")
