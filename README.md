@@ -32,6 +32,7 @@ Implemented:
 - duplicate-safe Tool Gateway registration
 - Tool Registry with a default Web Research Tool
 - SSRF-conscious public HTTP(S) page retrieval with size/content limits and redirects disabled
-- gateway and web-tool tests
+- Research Agent integration through the Tool Gateway
+- gateway, web-tool and integration tests
 
-The next step is wiring the Tool Registry into the Orchestrator/Research Agent execution path.
+Web retrieval is now available when an Agent Run supplies `input.url` and explicitly grants `web.read` in `context.constraints.permissions`.
