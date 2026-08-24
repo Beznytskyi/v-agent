@@ -1,5 +1,6 @@
 from core.tools.gateway import ToolGateway
 from core.tools.protocol import Tool
+from core.tools.web_research import WebResearchTool
 
 
 class ToolRegistry:
@@ -9,6 +10,10 @@ class ToolRegistry:
         self.gateway = ToolGateway()
         for tool in tools or []:
             self.gateway.register(tool)
+
+    @classmethod
+    def default(cls) -> "ToolRegistry":
+        return cls([WebResearchTool()])
 
     def register(self, tool: Tool) -> None:
         self.gateway.register(tool)
