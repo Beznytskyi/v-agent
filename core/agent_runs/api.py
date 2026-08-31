@@ -14,7 +14,7 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 
 
 class AgentRunRequest(BaseModel):
-    agent_name: str = Field(min_length=1, max_length=128)
+    agent_name: str | None = Field(default=None, min_length=1, max_length=128)
     objective: str = Field(min_length=1)
     input: dict = Field(default_factory=dict)
     context: dict = Field(default_factory=dict)
@@ -30,21 +30,30 @@ class AgentRunResponse(BaseModel):
 
 @router.post("/run", response_model=AgentRunResponse)
 async def run_agent(request: AgentRunRequest, session: AsyncSession = Depends(get_session)):
-    service = AgentRunService(session)
-    run = await service.start(
-        agent_name=request.agent_name,
+    orchestrator = Orchestrator()
+    context = AgentContext(
         objective=request.objective,
-        input_=request.input,
-        context=request.context,
+        input=request.input,
+        memory=request.context.get("memory", {}),
+        constraints=request.context.get("constraints", {}),
     )
+
     try:
-        context = AgentContext(
+        plan = None
+        agent_name = request.agent_name
+        if agent_name is None:
+            plan = await orchestrator.plan(context)
+            agent_name = plan.agent_name
+
+        service = AgentRunService(session)
+        run = await service.start(
+            agent_name=agent_name,
             objective=request.objective,
-            input=request.input,
-            memory=request.context.get("memory", {}),
-            constraints=request.context.get("constraints", {}),
+            input_=request.input,
+            context=request.context,
         )
-        result = await Orchestrator().run(request.agent_name, context)
+
+        result = await orchestrator.run(agent_name, context)
         payload = {
             "status": result.status,
             "summary": result.summary,
@@ -54,14 +63,25 @@ async def run_agent(request: AgentRunRequest, session: AsyncSession = Depends(ge
             "memory_updates": result.memory_updates,
             "requires_approval": result.requires_approval,
         }
+        if plan is not None:
+            payload["plan"] = {
+                "agent_name": plan.agent_name,
+                "rationale": plan.rationale,
+                "steps": [
+                    {
+                        "kind": step.kind,
+                        "target": step.target,
+                        "arguments": step.arguments,
+                    }
+                    for step in plan.steps
+                ],
+            }
         await service.complete(run.id, payload)
     except ValueError as exc:
-        await service.fail(run.id, str(exc))
-        await session.commit()
+        await session.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        await service.fail(run.id, str(exc))
-        await session.commit()
+        await session.rollback()
         raise HTTPException(status_code=500, detail="Agent execution failed") from exc
 
     await session.commit()
