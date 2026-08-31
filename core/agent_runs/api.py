@@ -38,21 +38,23 @@ async def run_agent(request: AgentRunRequest, session: AsyncSession = Depends(ge
         constraints=request.context.get("constraints", {}),
     )
 
-    try:
-        plan = None
-        agent_name = request.agent_name
-        if agent_name is None:
+    plan = None
+    agent_name = request.agent_name
+    if agent_name is None:
+        try:
             plan = await orchestrator.plan(context)
             agent_name = plan.agent_name
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-        service = AgentRunService(session)
-        run = await service.start(
-            agent_name=agent_name,
-            objective=request.objective,
-            input_=request.input,
-            context=request.context,
-        )
-
+    service = AgentRunService(session)
+    run = await service.start(
+        agent_name=agent_name,
+        objective=request.objective,
+        input_=request.input,
+        context=request.context,
+    )
+    try:
         result = await orchestrator.run(agent_name, context)
         payload = {
             "status": result.status,
@@ -78,10 +80,12 @@ async def run_agent(request: AgentRunRequest, session: AsyncSession = Depends(ge
             }
         await service.complete(run.id, payload)
     except ValueError as exc:
-        await session.rollback()
+        await service.fail(run.id, str(exc))
+        await session.commit()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        await session.rollback()
+        await service.fail(run.id, str(exc))
+        await session.commit()
         raise HTTPException(status_code=500, detail="Agent execution failed") from exc
 
     await session.commit()
