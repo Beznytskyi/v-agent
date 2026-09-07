@@ -28,15 +28,28 @@ Core components:
 
 Implemented:
 - typed planner contract with `AgentPlan` and `PlanStep`
-- provider boundary for future LLM-backed planning
 - deterministic safe baseline planner
+- OpenAI-compatible LLM planner provider with strict plan validation
+- configurable timeout and bounded exponential retry policy
+- provider boundary so deterministic planning remains the safe default
 - orchestrator integration for automatic agent selection
 - optional `agent_name` on `POST /agent/run`; omitted means Planner selects the agent
 - planned web-research step when a URL and registered tool are available
-- planner unit tests
+- planner and LLM-provider tests
 
-The Planner does not execute tools. Execution remains owned by the Orchestrator and controlled Tool Gateway.
+The Planner does not execute tools. Execution remains owned by the Orchestrator and controlled Tool Gateway. The LLM provider may only select agents and tools that the Orchestrator explicitly exposes.
+
+## LLM configuration
+
+The production-compatible provider can be configured with:
+- `V_AGENT_LLM_API_KEY`
+- `V_AGENT_LLM_BASE_URL` (defaults to `https://api.openai.com/v1`)
+- `V_AGENT_LLM_MODEL`
+- `V_AGENT_LLM_TIMEOUT` (defaults to `20` seconds)
+- `V_AGENT_LLM_MAX_RETRIES` (defaults to `2`)
+
+The provider is not enabled automatically; the deterministic planner remains the safe default until application wiring explicitly selects the LLM provider.
 
 ## Next
 
-Add a production LLM provider adapter that emits validated structured plans, with schema validation, timeout/retry policy, and tests.
+Wire the configured provider into application startup with an explicit feature flag, then add end-to-end provider integration coverage before enabling it by default.
