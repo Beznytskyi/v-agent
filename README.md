@@ -31,6 +31,7 @@ Implemented:
 - deterministic safe baseline planner
 - OpenAI-compatible LLM planner provider with strict plan validation
 - configurable timeout and bounded exponential retry policy
+- explicit feature flag for enabling the LLM provider
 - provider boundary so deterministic planning remains the safe default
 - orchestrator integration for automatic agent selection
 - optional `agent_name` on `POST /agent/run`; omitted means Planner selects the agent
@@ -41,15 +42,17 @@ The Planner does not execute tools. Execution remains owned by the Orchestrator 
 
 ## LLM configuration
 
-The production-compatible provider can be configured with:
+Set `V_AGENT_LLM_ENABLED=true` to explicitly enable the LLM planner. When it is unset or false, V-Agent uses the deterministic safe planner.
+
+Configure the provider with:
 - `V_AGENT_LLM_API_KEY`
 - `V_AGENT_LLM_BASE_URL` (defaults to `https://api.openai.com/v1`)
 - `V_AGENT_LLM_MODEL`
 - `V_AGENT_LLM_TIMEOUT` (defaults to `20` seconds)
 - `V_AGENT_LLM_MAX_RETRIES` (defaults to `2`)
 
-The provider is not enabled automatically; the deterministic planner remains the safe default until application wiring explicitly selects the LLM provider.
+The LLM provider is never enabled implicitly by the presence of an API key.
 
 ## Next
 
-Wire the configured provider into application startup with an explicit feature flag, then add end-to-end provider integration coverage before enabling it by default.
+Add end-to-end provider integration coverage with a mocked OpenAI-compatible endpoint, then evaluate enabling the provider in a controlled deployment.
