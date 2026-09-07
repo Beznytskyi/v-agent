@@ -1,9 +1,13 @@
+from __future__ import annotations
+
+import os
+
 from core.orchestrator.protocol import AgentContext
 from core.planner.protocol import AgentPlan, PlanStep, PlannerProvider
 
 
 class DeterministicPlannerProvider:
-    """Safe baseline provider used until an LLM adapter is configured."""
+    """Safe baseline provider used until an LLM adapter is explicitly enabled."""
 
     async def plan(self, context: AgentContext, available_agents: list[str], available_tools: list[str]) -> AgentPlan:
         if "research" in available_agents:
@@ -26,7 +30,16 @@ class DeterministicPlannerProvider:
 
 class Planner:
     def __init__(self, provider: PlannerProvider | None = None) -> None:
-        self.provider = provider or DeterministicPlannerProvider()
+        self.provider = provider or self._provider_from_environment()
+
+    @staticmethod
+    def _provider_from_environment() -> PlannerProvider:
+        enabled = os.environ.get("V_AGENT_LLM_ENABLED", "false").strip().lower()
+        if enabled in {"1", "true", "yes", "on"}:
+            from core.planner.llm import planner_from_environment
+
+            return planner_from_environment()
+        return DeterministicPlannerProvider()
 
     async def plan(
         self,
