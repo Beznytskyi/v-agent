@@ -61,3 +61,17 @@ async def test_research_agent_respects_web_permission_gate():
 async def test_unknown_agent_is_rejected():
     with pytest.raises(ValueError, match="Unknown agent"):
         await Orchestrator().run("unknown", AgentContext(objective="test"))
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_can_plan_research():
+    orchestrator = Orchestrator()
+    plan = await orchestrator.plan(
+        AgentContext(
+            objective="Research the supplied source",
+            input={"url": "https://example.com"},
+        )
+    )
+
+    assert plan.agent_name == "research"
+    assert [step.target for step in plan.steps] == ["research", "web.research"]
