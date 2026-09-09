@@ -7,7 +7,7 @@ from typing import Any, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from apps.telegram.gateway import TelegramGateway, TelegramMessage
+from apps.telegram.gateway import TelegramGateway, TelegramMessage, UnauthorizedTelegramUser
 
 
 class TelegramTransportError(RuntimeError):
@@ -122,10 +122,10 @@ class TelegramPollingService:
                     text=message.text,
                 )
             )
-        except Exception as exc:
+        except UnauthorizedTelegramUser:
+            return
+        except Exception:
             # Do not leak internal exception details or credentials to Telegram.
-            if exc.__class__.__name__ == "UnauthorizedTelegramUser":
-                return
             response = "Не удалось обработать задачу. Попробуйте ещё раз."
 
         await self.api.call(
